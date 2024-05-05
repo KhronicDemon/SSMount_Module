@@ -1,5 +1,7 @@
 #include "MountModule.h"
 #include "Config.h"
+#include <vector>
+
 
 void MountModule::Initialize() {
     sHookMgr->RegisterHook(SERVER_HOOK_MOUNT, &MountModule::OnMount);
