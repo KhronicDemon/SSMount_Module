@@ -1,38 +1,41 @@
 #include "MountModule.h"
 #include "Config.h"
+#include "Util.h" 
 #include <vector>
 
+class MountModule {
+private:
+    HookList<std::function<void(Player*, uint32)>> mountHooks;
+    HookList<std::function<void(Player*)>> dismountHooks;
 
-void MountModule::Initialize() {
-    sHookMgr->RegisterHook(SERVER_HOOK_MOUNT, &MountModule::OnMount);
-    sHookMgr->RegisterHook(SERVER_HOOK_DISMOUNT, &MountModule::OnDismount);
-}
+public:
+    void Initialize() {
+        mountHooks += [&](Player* player, uint32 mountSpellID) { OnMount(player, mountSpellID); };
+        dismountHooks += [&](Player* player) { OnDismount(player); };
+    }
 
-void MountModule::Shutdown() {
-    sHookMgr->RemoveHook(SERVER_HOOK_MOUNT, &MountModule::OnMount);
-    sHookMgr->RemoveHook(SERVER_HOOK_DISMOUNT, &MountModule::OnDismount);
-}
+    void Shutdown() {
+        mountHooks -= [&](Player* player, uint32 mountSpellID) { OnMount(player, mountSpellID); };
+        dismountHooks -= [&](Player* player) { OnDismount(player); };
+    }
 
-bool MountModule::CanMountUnderForm(Player* player, uint32 mountSpellID) {
-    std::vector<uint32> allowedForms = sConfigMgr->GetUInt32VectorDefault("Mounting.AllowedForms", {});
+    bool CanMountUnderForm(Player* player, uint32 mountSpellID) {
+        std::vector<uint32> allowedForms = sConfigMgr->GetOption<std::vector<uint32>>("Mounting.AllowedForms", {});
 
-    uint32 shapeshiftForm = player->GetShapeshiftForm();
-    for (uint32 formID : allowedForms) {
-        if (shapeshiftForm == formID && mountSpellID == formID) {
-            return true;
+        uint32 shapeshiftForm = player->GetShapeshiftForm();
+        return std::find(allowedForms.begin(), allowedForms.end(), shapeshiftForm) != allowedForms.end() && shapeshiftForm == mountSpellID;
+    }
+
+    void OnMount(Player* player, uint32 mountSpellID) {
+        if (CanMountUnderForm(player, mountSpellID)) {
+            player->Mount(mountSpellID);
+        }
+        else {
+            player->SendSystemMessage("You cannot mount in this form.");
         }
     }
-    return false;
-}
 
-void MountModule::OnMount(Player* player, uint32 mountSpellID) {
-    if (CanMountUnderForm(player, mountSpellID)) {
-        player->Mount(mountSpellID);
-    } else {
-        player->SendErrorMessage("You cannot mount in this form.");
+    void OnDismount(Player* player) {
+        player->Dismount();
     }
-}
-
-void MountModule::OnDismount(Player* player) {
-    player->Dismount();
-}
+};
